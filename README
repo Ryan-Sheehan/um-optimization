@@ -1,0 +1,114 @@
+/*
+* filename: README
+* created by: Hayden Wolff, Rachel Ginsberg
+* Comp40 HW6
+*/
+
+Acknowledgements: Thank you to Noah and Norman for their bitpack 
+implementations. We received TA help from Daniel, Victoria, Ashton,
+Ella, Margaret, Mert, and Jared.
+
+To the best of our knowledge, all parts of this assignment have
+been implemented correctly. 
+
+We stuck with our original architecture but we decided to remove the
+bitpack module. Instead we put the bitpack functions we used in the decode
+module to make our code much faster. This helped because we were 
+very frequently going back and forth between the decode and bitpack
+modules, so it was worth losing that aspect of modularity.
+Additionally, we added a counter in our memory module.
+
+Program Architecture:
+Memory Module:
+    This module allows for the storage and retrieval of instructions
+    and data into and out of memory. The architecture of this module
+    is a struct that is typedef as a pointer in the .h, allowing for
+    secrets to be kept from the rest of the program. Within this
+    struct is a Hanson sequence for the segmented memory, a Hanson stack 
+    to keep track of open segments, and an uint32_t to track the max index 
+    used in the sequence. The other modules are able to access what is stored
+    in memory and control what is put in through the instruction driver, but
+    are not able to modify the data within easily because it is all held 
+    private to the module. 
+
+
+Register Module:
+    This module allows for the storage and retrieval of values into and out of
+    registers. This module has a struct that is typedef as a pointer in the .h
+    so it maintains secrets. The struct contains a Norman Ramsey UArray that 
+    is later initialized to have a length of 8 and contain values of the size 
+    of a uint32_t. We have two functions (reg_put and reg_get) that can be used
+    outside the module to interact with the registers without directly 
+    modifying the data.
+
+
+Decode Module:
+    This module is used for all the bitpacking in the program. It contains a 
+    stuct that is typedef as a pointer that contains 1 int and 4 uint32_t 
+    values. It contains the values that are packed into an instruction (opcode,
+    register a, register b, etc) and a function to unpack according to the 
+    given instruction format. It then stores these values in the struct. 
+    This module also has accessor functions for all these values so that other 
+    modules can access the values. Since the decode module contains all 
+    necessary bitpacking functions, it contains the new unsigned function that
+    is used in the instruction_driver to pack instructions that are inserted 
+    into memory.
+
+
+Instruction Driver Module:
+    This module contains the functions necessary to execute the um and 
+    interacts with all the other modules. One function reads from a file to 
+    store instructions in memory. It also contains a function for each opcode 
+    that interacts with the memory and register modules as necessary to perform
+    the given instruction. These functions interact with decode to access the 
+    necessary information given in an instruction.
+
+
+How long 50 million instructions: 2.76875 seconds
+We got this number because we know that midmark has a bit over
+80 million instructions. We know it 4.43 seconds for midmark to 
+complete, so then 50 million instructions proportionally takes 
+2.76875 seconds. Of course this number varies with each test due to 
+external factors, but this is the best approximation we can get.
+Hopefully we get our time much lower in the next assignment because
+a "weak" computer computes about 1 billion instructions/second. We
+would like our UM to be able to do this after optimization.
+
+
+Unit Testing
+    halt.um: halts the program with a single instruction
+    halt-verbose: halts the program, contains instructions after halt to ensure
+    halt correctly ends program
+    add.um: adds the values of two registers and halts
+    add-verbose.um: tests adding values that have been loaded into two registers
+    and outputing that value as a character
+    mult.um: tests multiplication instruction by loading two values into 
+    registers, multiplies them and stores in an additional register, outputs 
+    that values and then halts
+    mult-verbose.um: tests multiplication instruction in the same way as mult, 
+    and includes additional multiplication instructions
+    print-six.um: tests addition by loading values, adding them, and outputing 
+    the sum
+    sload-test.um: tests segmented load after mapping two segments and unmapping
+    the first segment and then mapping an additional segment (this test was 
+    helpful for testing our particular implementation of reusing segment ids in
+    memory)
+    loadp.um: tests load program instruction, loads segment 0 and modifies the
+    program counter
+    loadp-counter.um: tests counter modification of load program instruction by
+    modifying counter and loading segment 0 as the memory segment- should skip 
+    the output instruction
+    loadp-verbose.um: tests loadprogram instruction by creating a new segment 
+    and 
+    loading a value that is a halt instruction into the new segment, then 
+    loadprogram is called to load this segment into segment 0 and then the halt
+    instruction is executed properly
+
+
+Time spent analyzing assignment: 2 hours
+
+Time spent preparing design: 10 hours
+
+Time spent solving problems after analysis: 25 hours
+(we ran into a bug with doing mod 32 because we misinterpreted
+the spec which added around 6 hours to our coding time).

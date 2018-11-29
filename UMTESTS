@@ -1,0 +1,11 @@
+halt.um
+halt-verbose.um
+add.um
+add-verbose.um
+mult.um
+mult-verbose.um
+print-six.um
+sload.um
+loadp.um
+loadp-count.um
+loadp-verbose.um

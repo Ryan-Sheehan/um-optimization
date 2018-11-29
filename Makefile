@@ -4,9 +4,9 @@
 CC = gcc
 
 IFLAGS  = -I/comp/40/include -I/usr/sup/cii40/include/cii
-CFLAGS  = -g -std=gnu99 -Wall -Wextra -Werror -pedantic  $(IFLAGS)
+CFLAGS  = -O2 -g -std=gnu99 -Wall -Wextra -Werror -pedantic  $(IFLAGS)
 LDFLAGS = -g -L/comp/40/lib64 -L/usr/sup/cii40/lib64
-LDLIBS  = -lcii40 -lm
+LDLIBS  = -lcii40-O2 -lm
 
 EXECS   = um
 
@@ -21,5 +21,5 @@ um: decode.o memory.o register.o instruction_driver.o um.o
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -f $(EXECS)  *.o
+	rm -f  *.o
 

@@ -10,7 +10,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <assert.h>
-#include "uarray.h"
+#include "buarray.h"
 #include "stack.h"
 #include "seq.h"
 
@@ -21,11 +21,11 @@ typedef uint32_t Umsegment_ID;
  * in memory.h, contains a Hanson Sequence, a Hanson
  * Stack and a uint32_t to handle memeory
  */
-struct mem_info {
+static struct mem_info {
         Seq_T segments;
         Stack_T open_indices;
         uint32_t max_index;
-};
+} mem_manager;
 
 
 /*
@@ -37,19 +37,13 @@ struct mem_info {
  *       creates Hanson stack to track open indices
  *       
  */
-mem_info_p init_segments(int num_inst)
+void init_segments(int num_inst)
 {
-        mem_info_p mem;
+        BUArray_T seg0 = BUArray_new(num_inst);
 
-        mem = malloc(sizeof(struct mem_info));
-        assert(mem != NULL);
-        UArray_T seg0 = UArray_new(num_inst, sizeof(uint32_t));
-
-        mem->segments = Seq_seq(seg0, NULL);
-        mem->max_index = 1;
-        mem->open_indices = Stack_new();
-
-        return mem;
+        mem_manager.segments = Seq_seq(seg0, NULL);
+        mem_manager.max_index = 1;
+        mem_manager.open_indices = Stack_new();
 }
 
 
@@ -63,29 +57,22 @@ mem_info_p init_segments(int num_inst)
  *       otherwise pops open index off stack and puts the new data in
  *       that spot in the sequence
  */
-uint32_t map_segment(mem_info_p mem, uint32_t len)
+uint32_t map_segment(uint32_t len)
 {
         uint32_t index;
-        uint32_t *temp;
+        BUArray_T mem_seg = BUArray_new(len);
 
-        UArray_T mem_seg = UArray_new(len, sizeof(uint32_t));
-
-        for (int i = 0; i < (int)len; i++) {
-                temp = UArray_at(mem_seg, i);
-                *temp = 0;
-        }
-
-        if (Stack_empty(mem->open_indices)) {
-                Seq_addhi(mem->segments, mem_seg);
-                index = (mem->max_index);
-                mem->max_index = (mem->max_index) + 1; 
+        if (Stack_empty(mem_manager.open_indices)) {
+                Seq_addhi(mem_manager.segments, mem_seg);
+                index = (mem_manager.max_index);
+                mem_manager.max_index = (mem_manager.max_index) + 1; 
                 
                 return index;
 
         } else {
                 index = ((Umsegment_ID)(uintptr_t)
-                        Stack_pop(mem->open_indices));
-                Seq_put(mem->segments, (int)index, mem_seg);
+                        Stack_pop(mem_manager.open_indices));
+                Seq_put(mem_manager.segments, index, mem_seg);
                 return index;
         }
 }
@@ -99,15 +86,10 @@ uint32_t map_segment(mem_info_p mem, uint32_t len)
  * does: puts a value in memory at a given segment_id and 
  *       index
  */
-void mem_put(mem_info_p mem, uint32_t segment_id, uint32_t array_index, 
-        uint32_t val)
+void mem_put(uint32_t segment_id, uint32_t array_index, uint32_t val)
 {
-        UArray_T mem_seg;
-        uint32_t *temp;
-
-        mem_seg = ((UArray_T)Seq_get(mem->segments, (int)segment_id)); 
-        temp = (uint32_t *)UArray_at(mem_seg, (int)array_index);
-        *temp = val;
+        BUArray_T mem_seg = Seq_get(mem_manager.segments, segment_id); 
+        BUArray_put(mem_seg, array_index, val);
 }
 
 
@@ -118,16 +100,10 @@ void mem_put(mem_info_p mem, uint32_t segment_id, uint32_t array_index,
  * returns: uint32_t (word stored in memory)
  * does: gets a value from memory at given segment id and index 
  */
-uint32_t mem_get(mem_info_p mem, uint32_t segment_id, uint32_t array_index)
+uint32_t mem_get(uint32_t segment_id, uint32_t array_index)
 {
-        UArray_T mem_seg;
-        uint32_t val;
-
-        mem_seg = ((UArray_T )Seq_get(mem->segments, (int)segment_id));
-        val = *((uint32_t *)UArray_at(mem_seg, (int)array_index));
-
-        return val;
-
+        BUArray_T mem_seg = Seq_get(mem_manager.segments, segment_id);
+        return BUArray_get(mem_seg, array_index);
 }
 
 /*
@@ -136,30 +112,18 @@ uint32_t mem_get(mem_info_p mem, uint32_t segment_id, uint32_t array_index)
  * returns: void
  * does: loads new instructions in segment 0 of memory 
  */
-void load_program_mem(mem_info_p mem, uint32_t segment_id)
+void load_program_mem(uint32_t segment_id)
 {
-        UArray_T mem_seg;
-        UArray_T new_seg;
-        UArray_T seg_0;
-        int len;
-        uint32_t orig_val;
-        uint32_t *new_val;
+        BUArray_T seg_0 = Seq_get(mem_manager.segments, 0);
+        BUArray_T mem_seg = Seq_get(mem_manager.segments, segment_id);
+        uint32_t len = BUArray_length(mem_seg);
+        BUArray_reloc(&seg_0, len);
 
-        seg_0 = ((UArray_T )Seq_get((mem)->segments, 0));
-
-        mem_seg = ((UArray_T )Seq_get((mem)->segments, (int)segment_id));
-        len = UArray_length(mem_seg);
-
-        new_seg = UArray_new(len, sizeof(uint32_t));
-        for (int i = 0; i < len; i++) 
+        for (uint32_t i = 0; i < len; i++) 
         {
-                orig_val = *((uint32_t *)UArray_at(mem_seg, i));
-                new_val = ((uint32_t *)UArray_at(new_seg, i));
-                *new_val = orig_val;
+                uint32_t cpy = BUArray_get(mem_seg, i);
+                BUArray_put(seg_0, i, cpy);
         }
-
-        Seq_put(mem->segments, 0, new_seg);
-        UArray_free(&seg_0);
 }
 
 
@@ -170,15 +134,11 @@ void load_program_mem(mem_info_p mem, uint32_t segment_id)
  * does: unmaps a segment by freeing it and then pushing its
  *       index onto the stack of open indices for reuse   
  */
-void unmap_segment(mem_info_p mem, uint32_t segment_id)
+void unmap_segment(uint32_t segment_id)
 {
-        UArray_T mem_seg;
-
-        mem_seg = (UArray_T )Seq_get(mem->segments, (int)segment_id);
-        Seq_put(mem->segments, (int)segment_id, NULL);
-        UArray_free(&mem_seg);
-
-        Stack_push(mem->open_indices, (void *)(uintptr_t)segment_id);
+        BUArray_T mem_seg = Seq_put(mem_manager.segments, segment_id, NULL);
+        BUArray_free(&mem_seg);
+        Stack_push(mem_manager.open_indices, (void *)(uintptr_t)segment_id);
 }
 
 /*
@@ -187,18 +147,15 @@ void unmap_segment(mem_info_p mem, uint32_t segment_id)
  * returns: void
  * does: puts a value in memory    
  */
-void free_segments(mem_info_p *mem) {
-        UArray_T inst_seg;
-
-        while (Seq_length((*mem)->segments) != 0) {
-                inst_seg = ((UArray_T )Seq_remhi((*mem)->segments));
+void free_segments(void)
+{
+        while (Seq_length(mem_manager.segments) != 0) {
+                BUArray_T inst_seg = Seq_remhi(mem_manager.segments);
                 if (inst_seg != NULL) {
-                        UArray_free(&inst_seg);
+                        BUArray_free(&inst_seg);
                 } 
         }
 
-        Seq_free(&((*mem)->segments));
-        Stack_free(&((*mem)->open_indices));
-        free(*mem);
-        mem = NULL;
+        Seq_free(&(mem_manager.segments));
+        Stack_free(&(mem_manager.open_indices));
 }

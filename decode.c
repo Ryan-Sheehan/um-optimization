@@ -1,7 +1,8 @@
 /* 
 * decode.c
-* Rachel Ginsberg and Hayden Wolff
-* Comp40 HW6
+* Originally Rachel Ginsberg and Hayden Wolff
+* Edited by Alex Pantuck and Ryan Sheehan
+* Comp40 HW7
 * decode module implementation: can be used to pack and unpack words,
 * has a function to unpack in the style of the um
 */
@@ -16,13 +17,13 @@
  * in deocde.h, contains 1 integer and 4 uint32_t
  * from unpacked instruction
  */
-struct inst {
+static struct inst {
         int opcode;
         uint32_t rega;
         uint32_t regb;
         uint32_t regc;
         uint32_t val;
-};
+} instruction;
 
 const uint32_t LSB_RA = 6, LSB_RB = 3, LSB_RC = 0, LSB_OP = 28,
         LSB_13V = 0, LSB_13R = 25;
@@ -41,27 +42,19 @@ static inline uint32_t mask_code(const uint32_t,
  * does: unpacks a word using Bitpack into its opcode,
  *       and 3 different register identifiers (a, b, c)
  */
-inst_p unpack(uint32_t word) 
+void unpack(uint32_t word) 
 {
-        inst_p instruction;
-        uint32_t opcode;
+        uint32_t opcode = mask_code(word, MASK_OP, LSB_OP);
+        instruction.opcode = opcode;
 
-        instruction = malloc(sizeof(struct inst));
-        assert(instruction != NULL);
-          
-        opcode = mask_code(word, MASK_OP, LSB_OP);
-        instruction->opcode = opcode;
-
-        if (opcode == 13) {
-                instruction->rega = mask_code(word, MASK_13_R, LSB_13R);
-                instruction->val = mask_code(word, MASK_13_V, LSB_13V);
+        if (opcode < 13) {
+                instruction.rega = mask_code(word, MASK_RA, LSB_RA);
+                instruction.regb = mask_code(word, MASK_RB, LSB_RB);
+                instruction.regc = mask_code(word, MASK_RC, LSB_RC);
         } else {
-                instruction->rega = mask_code(word, MASK_RA, LSB_RA);
-                instruction->regb = mask_code(word, MASK_RB, LSB_RB);
-                instruction->regc = mask_code(word, MASK_RC, LSB_RC);
-        }
-
-        return instruction;
+                instruction.rega = mask_code(word, MASK_13_R, LSB_13R);
+                instruction.val = mask_code(word, MASK_13_V, LSB_13V);
+        } 
 }
 
 
@@ -71,9 +64,9 @@ inst_p unpack(uint32_t word)
  * returns: int opcode
  * does: opcode accessor
  */
-int get_opcode(inst_p inst_info)
+int get_opcode(void)
 {
-        return inst_info->opcode;
+        return instruction.opcode;
 }
 
 
@@ -83,9 +76,9 @@ int get_opcode(inst_p inst_info)
  * returns: uint32_t register A identifier
  * does: accessor for register identifier
  */
-uint32_t get_rega(inst_p inst_info)
+uint32_t get_rega(void)
 {
-        return inst_info->rega;
+        return instruction.rega;
 }
 
 
@@ -96,9 +89,9 @@ uint32_t get_rega(inst_p inst_info)
  * returns: uint32_t register B identifier
  * does: accessor for register identifier
  */
-uint32_t get_regb(inst_p inst_info)
+uint32_t get_regb(void)
 {
-        return inst_info->regb;
+        return instruction.regb;
 }
 
 
@@ -108,9 +101,9 @@ uint32_t get_regb(inst_p inst_info)
  * returns: uint32_t register C identifier
  * does: accessor for register identifier
  */
-uint32_t get_regc(inst_p inst_info)
+uint32_t get_regc(void)
 {
-        return inst_info->regc;
+        return instruction.regc;
 }
 
 
@@ -121,9 +114,9 @@ uint32_t get_regc(inst_p inst_info)
  * does: accessor for unsigned binary value for
  *       opcode 13
  */
-uint32_t get_val(inst_p inst_info)
+uint32_t get_val(void)
 {
-        return inst_info->val;
+        return instruction.val;
 }
 
 /** Private Functions: **/

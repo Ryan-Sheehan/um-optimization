@@ -1,21 +1,41 @@
 /* 
-* instruction_driver.c
+* ruction_driver.c
 * Rachel Ginsberg and Hayden Wolff
 * Comp40 HW6
-* Instruction driver module implementation: reads instructions from a file 
-* and stores them in memory. It then reads the instructions and performs 
+* instruction driver module implementation: reads ructions from a file 
+* and stores them in memory. It then reads the ructions and performs 
 * the given operation.
 */
 
 #include "instruction_driver.h"
 #include <stdlib.h>
 #include <sys/stat.h>
+#include <endian.h>
+#include <assert.h>
+
+#define WORD_SIZE sizeof(uint32_t)
 
 typedef enum Um_opcode {
         CMOV = 0, SLOAD, SSTORE, ADD, MUL, DIV,
         NAND, HALT, ACTIVATE, INACTIVATE, OUT, IN, LOADP, LV
 } Um_opcode;
 
+static void init_um(FILE *fp, char *filename);
+static void run(void);
+static void cmov(void);
+static void sload(void);
+static void sstore(void);
+static void add(void);
+static void mul(void);
+static void divide(void);
+static void nand(void);
+static void halt();
+static void activate(void);
+static void inactivate(void);
+static void output(void);
+static void input(void);
+static void loadp(int *counter);
+static void loadv(void);
 
 /*
  * function: driver
@@ -23,16 +43,13 @@ typedef enum Um_opcode {
  * returns: void
  * does: a driver to handle calling functions to
  *       initialize memory/registers and deal with
- *       the different instructions
+ *       the different ructions
  *       
  */
 void driver(FILE *fp, char *filename)
-{
-        register_p reg; 
-        mem_info_p mem; 
-        init_um(fp, filename, &reg, &mem);
-
-        run(reg, mem);
+{ 
+        init_um(fp, filename);
+        run();
 }
 
 
@@ -42,242 +59,204 @@ void driver(FILE *fp, char *filename)
                register struct), mem_info_p *mem (PP to memory struct)
  * returns: void
  * does: initializes register array and memory segments, puts the 
- *       instructions in segment 0 of memory
+ *       ructions in segment 0 of memory
  */
-void init_um(FILE *fp, char *filename, register_p *reg, mem_info_p *mem)
+static void init_um(FILE *fp, char *filename)
 {
         struct stat st;
-        int size;
-        int c;
-        uint32_t word;
-
         stat(filename, &st);
-        size = st.st_size;
+        int size = st.st_size;
+        uint32_t length = size / WORD_SIZE;
 
-        *reg = init_arr();
-        *mem = init_segments(size);
-        word = 0;
-        for (int i = 0; i < (size/4); i++) {
-                for (int lsb = 24; lsb >= 0; lsb -=8) {
-                        c = fgetc(fp);
-                        if (c != EOF) {
-                                 word = Bitpack_newu(word, 8, lsb, c);
-                        }
-                }
-                mem_put(*mem, 0, (uint32_t)i, word);
+        init_segments(size);
+
+        /* Every 4 bytes becomes a word */
+        uint32_t matches, *words = malloc(WORD_SIZE * length);
+        assert(words != NULL);
+        matches = fread(words, WORD_SIZE, length, fp);
+        assert(matches == length);
+        if (matches != length) {
+                fprintf(stderr, "Error reading from file '%s'\n", filename);
+                exit(EXIT_FAILURE);
         }
+        
+        for (uint32_t i = 0; i < length; i++)
+            mem_put(0, i, be32toh(words[i]));
 }
 
 
 /*
  * function: run
- * parameters: register_p reg (pointer to register struct), 
+ * parameters: void (pointer to register struct), 
  *             mem_info_p mem (pointer to memory struct)
  * returns: void
  * does: interface between decoding, memory, and register 
  *       modules, given an instruction and its opcode calls
  *       the respective instruction function
  */
-void run(register_p reg, mem_info_p mem)
+static void run(void)
 {
         int counter;
         uint32_t word;
-        inst_p decoded_instruction;
         int opcode;
 
         counter = 0;
         opcode = 0;
 
         while (opcode != HALT) {
-                word = mem_get(mem, 0, counter);
+                word = mem_get(0, counter);
 
-                decoded_instruction = unpack(word);
-                opcode = get_opcode(decoded_instruction);
+                unpack(word);
+                opcode = get_opcode();
 
                 if (opcode == CMOV) {
-                        cmov(decoded_instruction, reg);
+                        cmov();
                 } else if (opcode == SLOAD) {
-                        sload(decoded_instruction, reg, mem);
+                        sload();
                 } else if (opcode == SSTORE) {
-                        sstore(decoded_instruction, reg, mem);
+                        sstore();
                 } else if (opcode == ADD) {
-                        add(decoded_instruction, reg);
+                        add();
                 } else if (opcode == MUL) {
-                        mul(decoded_instruction, reg);
+                        mul();
                 } else if (opcode == DIV) {
-                        divide(decoded_instruction, reg);
+                        divide();
                 } else if (opcode == NAND) {
-                        nand(decoded_instruction, reg);
+                        nand();
                 } else if (opcode == HALT) {
                         halt();
                 } else if (opcode == ACTIVATE) {                        
-                        activate(decoded_instruction, reg, mem);
+                        activate();
                 } else if (opcode == INACTIVATE) {
-                        inactivate(decoded_instruction, reg, mem);
+                        inactivate();
                 } else if (opcode == OUT) {
-                        output(decoded_instruction, reg);
+                        output();
                 } else if (opcode == IN) {
-                        input(decoded_instruction, reg);
+                        input();
                 } else if (opcode == LOADP) {
-                        loadp(decoded_instruction, reg, mem, &counter);
+                        loadp(&counter);
                 } else if (opcode == LV) {
-                        loadv(decoded_instruction, reg);
+                        loadv();
                 }
                 if (opcode != LOADP) {
                         counter++;
                 }
-                free(decoded_instruction);
-                decoded_instruction = NULL;
         }
-        free_arr(&reg);
-        free_segments(&mem);
+        free_segments();
 }
 
 
 /*
  * function: cmov
- * parameters: inst_p inst, register_p reg
+ * parameters: void
  * returns: void
  * does: conditional move-- if register c doesn't have 0,  
  *        then value of register B goes in register A
  */
-void cmov(inst_p inst, register_p reg)
+static void cmov(void)
 {
-        uint32_t b;
-        uint32_t c;
-
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
-
-            if (c != 0) {
-                    reg_put(reg, get_rega(inst), b);
-            }
+        uint32_t c = registers[get_regc()];
+        if (c != 0) {
+                uint32_t b = registers[get_regb()];
+                registers[get_rega()] = b;
+        }
 }
 
 
 /*
  * function: sload
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
                mem_info_p mem
  * returns: void
  * does: segmented load-- accesss segment ID in register B
  *       and array index in register c, put that respective
  *       value in register c     
  */
-void sload(inst_p inst, register_p reg, mem_info_p mem)
+static void sload(void)
 {
-        uint32_t b;
-        uint32_t c;
-
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
-        uint32_t mem_val = mem_get(mem, b, c);
-
-        reg_put(reg, get_rega(inst), mem_val);
+        uint32_t b = registers[get_regb()];
+        uint32_t c = registers[get_regc()];
+        uint32_t mem_val = mem_get(b, c);
+        registers[get_rega()] = mem_val;
 }
 
 
 /*
  * function: sstore
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
                mem_info_p mem
  * returns: void
  * does: segmented load-- accesss segment ID in register B
  *       and array index in register c, put that respective
  *       value in register c     
  */
-void sstore(inst_p inst, register_p reg, mem_info_p mem)
+static void sstore(void)
 {
-        uint32_t a;
-        uint32_t b;
-        uint32_t c;
-
-        a = reg_get(reg, get_rega(inst));
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
-        mem_put(mem, a, b, c);
+        uint32_t a = registers[get_rega()];
+        uint32_t b = registers[get_regb()];
+        uint32_t c = registers[get_regc()];
+        mem_put(a, b, c);
 }
 
 
 /*
  * function: add
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
  * returns: void
  * does: add-- adds values in registers B and C,
  *       puts result in register A    
  */
-void add(inst_p inst, register_p reg)
+static void add(void)
 {
-        uint32_t b;
-        uint32_t c;
-
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
-
-        reg_put(reg, get_rega(inst), (b + c));
+        uint32_t b = registers[get_regb()];
+        uint32_t c = registers[get_regc()];
+        registers[get_rega()] = (b + c);
 }
 
 
 /*
  * function: mul
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
  * returns: void
  * does: multiply-- multiplies values in registers B and C,
  *       puts result in register A    
  */
-void mul(inst_p inst, register_p reg)
+static void mul(void)
 {
-        uint32_t b;
-        uint32_t c;
-
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
-
-        reg_put(reg, get_rega(inst), (b * c));
-
+        uint32_t b = registers[get_regb()];
+        uint32_t c = registers[get_regc()];
+        registers[get_rega()] = (b * c);
 }
 
 
 /*
  * function: divide
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
  * returns: void
  * does: divide-- divides values in registers B and C,
  *       puts result in register A    
  */
-void divide(inst_p inst, register_p reg)
+static void divide(void)
 {
-        uint32_t b;
-        uint32_t c;
-
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
-
-        reg_put(reg, get_rega(inst), (b / c));
+        uint32_t b = registers[get_regb()];
+        uint32_t c = registers[get_regc()];
+        registers[get_rega()] = (b / c);
 }
 
 
 /*
  * function: nand
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
  * returns: void
  * does: bitwise NAND-- NANDS the values in 
  *       registers B and C, puts result in 
  *       register A   
  */
-void nand(inst_p inst, register_p reg)
+static void nand(void)
 {
-        uint32_t b;
-        uint32_t c;
-        uint32_t together;
-        uint32_t not_together;
-
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
-        together = b & c;
-        not_together = ~(together);
-
-        reg_put(reg, get_rega(inst), not_together);
+        uint32_t b = registers[get_regb()];
+        uint32_t c = registers[get_regc()];
+        registers[get_rega()] = ~(b & c);
 }
 
 
@@ -287,7 +266,7 @@ void nand(inst_p inst, register_p reg)
  * returns: void
  * does: nothing 
  */
-void halt()
+static void halt()
 {
 
 }
@@ -295,7 +274,7 @@ void halt()
 
 /*
  * function: activate
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
  *             mem_info_p mem
  * returns: void
  * does: map segment-- a new segment is created with the
@@ -304,49 +283,41 @@ void halt()
  *               not all 0 and does not identify any curently mapped 
  *               segment is placed in register B   
  */
-void activate(inst_p inst, register_p reg, mem_info_p mem)
+static void activate(void)
 {
-        uint32_t c;
-        uint32_t id;
-
-        c = reg_get(reg, get_regc(inst));
-        id = map_segment(mem, c);
-
-        reg_put(reg, get_regb(inst), id);
+        uint32_t c = registers[get_regc()];
+        uint32_t id = map_segment(c);
+        registers[get_regb()] = id;
 }
 
 
 /*
  * function: inactivate
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
  *             mem_info_p mem
  * returns: void
  * does: unmap segment--, the segment in register
- *       c is unmapped, future map segment instructions
+ *       c is unmapped, future map segment ructions
  *       may reuse the identfier in register C
  */
-void inactivate(inst_p inst, register_p reg, mem_info_p mem)
+static void inactivate(void)
 {
-        uint32_t c;
-
-        c = reg_get(reg, get_regc(inst));
-        unmap_segment(mem, c);
+        uint32_t c = registers[get_regc()];
+        unmap_segment(c);
 }
 
 
 /*
  * function: output
- * parameters: inst_p inst, register_p reg
+ * parameters: void
  * returns: void
  * does: the value in register C is written to
  *       the I/O device immediately, only values
  *       0-255 are allowed
  */
-void output(inst_p inst, register_p reg)
+static void output(void)
 {
-        uint32_t out;
-
-        out = reg_get(reg, get_regc(inst));
+        uint32_t out = registers[get_regc()];
         if (out <= 255) {
                 putchar(out);
         }
@@ -355,7 +326,7 @@ void output(inst_p inst, register_p reg)
 
 /*
  * function: input
- * parameters: inst_p inst, register_p reg
+ * parameters: void
  * returns: void
  * does: waits for input on the I/O device,
  *       when input arrives register C is loaded
@@ -364,21 +335,16 @@ void output(inst_p inst, register_p reg)
  *       loaded with a full 32-bit word in which every
  *       bit is a 1 
  */
-void input(inst_p inst, register_p reg)
+static void input(void)
 {
-        uint32_t in;
-
-        in = getchar();
-        if ((int)in == EOF) {
-                in = -1;
-        }
-        reg_put(reg, get_regc(inst), in);
+        uint32_t in = getchar();
+        registers[get_regc()] = in;
 }
 
 
 /*
  * function: loadp
- * parameters: inst_p inst, register_p reg,
+ * parameters: void,
  *             mem_info_p mem
  * returns: void
  * does: load program-- segment whose ID is held in 
@@ -389,31 +355,27 @@ void input(inst_p inst, register_p reg)
  *        instruction segment. If the value in register B is
  *        0, then just the counter is changed. 
  */
-void loadp(inst_p inst, register_p reg, mem_info_p mem, int *counter)
+static void loadp(int *counter)
 {
-        uint32_t b;
-        uint32_t c;
-
-        b = reg_get(reg, get_regb(inst));
-        c = reg_get(reg, get_regc(inst));
+        uint32_t b = registers[get_regb()];
+        uint32_t c = registers[get_regc()];
 
         if (b == 0) {
                 *counter = c;
         } else {
-                load_program_mem(mem, b);
+                load_program_mem(b);
         }
-        
 }
 
 
 /*
  * function: loadv
- * parameters: inst_p inst, register_p reg
+ * parameters: void
  * returns: void
  * does: sets the value in register A to the 
  *       25 bit unsigned binary value
  */
-void loadv(inst_p inst, register_p reg)
+static void loadv(void)
 {
-        reg_put(reg, get_rega(inst), get_val(inst));
+        registers[get_rega()] = get_val();
 }

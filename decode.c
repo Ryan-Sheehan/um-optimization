@@ -1,7 +1,8 @@
 /* 
 * decode.c
-* Rachel Ginsberg and Hayden Wolff
-* Comp40 HW6
+* Originally Rachel Ginsberg and Hayden Wolff
+* Edited by Alex Pantuck and Ryan Sheehan
+* Comp40 HW7
 * decode module implementation: can be used to pack and unpack words,
 * has a function to unpack in the style of the um
 */
@@ -16,14 +17,23 @@
  * in deocde.h, contains 1 integer and 4 uint32_t
  * from unpacked instruction
  */
-struct inst {
+static struct inst {
         int opcode;
         uint32_t rega;
         uint32_t regb;
         uint32_t regc;
         uint32_t val;
-};
+} instruction;
 
+const uint32_t LSB_RA = 6, LSB_RB = 3, LSB_RC = 0, LSB_OP = 28,
+        LSB_13V = 0, LSB_13R = 25;
+/* Predefined bit masks because they dont change */
+const uint32_t MASK_RA = 448, MASK_RB = 56, MASK_RC = 7,
+        MASK_OP = 4026531840, MASK_13_R = 234881024,
+        MASK_13_V = 33554431;
+
+static inline uint32_t mask_code(const uint32_t, 
+    const uint32_t, const uint32_t);
 
 /*
  * function: unpack
@@ -32,27 +42,19 @@ struct inst {
  * does: unpacks a word using Bitpack into its opcode,
  *       and 3 different register identifiers (a, b, c)
  */
-inst_p unpack(uint32_t word) 
+void unpack(uint32_t word) 
 {
-        inst_p instruction;
-        uint32_t opcode;
+        uint32_t opcode = mask_code(word, MASK_OP, LSB_OP);
+        instruction.opcode = opcode;
 
-        instruction = malloc(sizeof(struct inst));
-        assert(instruction != NULL);
-          
-        opcode = Bitpack_getu(word, 4, 28);
-        instruction->opcode = opcode;
-
-        if (opcode == 13) {
-                instruction->rega = Bitpack_getu(word, 3, 25);
-                instruction->val = Bitpack_getu(word, 25, 0);
+        if (opcode < 13) {
+                instruction.rega = mask_code(word, MASK_RA, LSB_RA);
+                instruction.regb = mask_code(word, MASK_RB, LSB_RB);
+                instruction.regc = mask_code(word, MASK_RC, LSB_RC);
         } else {
-                instruction->rega = Bitpack_getu(word, 3, 6);
-                instruction->regb = Bitpack_getu(word, 3, 3);
-                instruction->regc = Bitpack_getu(word, 3, 0);
-        }
-
-        return instruction;
+                instruction.rega = mask_code(word, MASK_13_R, LSB_13R);
+                instruction.val = mask_code(word, MASK_13_V, LSB_13V);
+        } 
 }
 
 
@@ -62,9 +64,9 @@ inst_p unpack(uint32_t word)
  * returns: int opcode
  * does: opcode accessor
  */
-int get_opcode(inst_p inst_info)
+int get_opcode(void)
 {
-        return inst_info->opcode;
+        return instruction.opcode;
 }
 
 
@@ -74,9 +76,9 @@ int get_opcode(inst_p inst_info)
  * returns: uint32_t register A identifier
  * does: accessor for register identifier
  */
-uint32_t get_rega(inst_p inst_info)
+uint32_t get_rega(void)
 {
-        return inst_info->rega;
+        return instruction.rega;
 }
 
 
@@ -87,9 +89,9 @@ uint32_t get_rega(inst_p inst_info)
  * returns: uint32_t register B identifier
  * does: accessor for register identifier
  */
-uint32_t get_regb(inst_p inst_info)
+uint32_t get_regb(void)
 {
-        return inst_info->regb;
+        return instruction.regb;
 }
 
 
@@ -99,9 +101,9 @@ uint32_t get_regb(inst_p inst_info)
  * returns: uint32_t register C identifier
  * does: accessor for register identifier
  */
-uint32_t get_regc(inst_p inst_info)
+uint32_t get_regc(void)
 {
-        return inst_info->regc;
+        return instruction.regc;
 }
 
 
@@ -112,63 +114,15 @@ uint32_t get_regc(inst_p inst_info)
  * does: accessor for unsigned binary value for
  *       opcode 13
  */
-uint32_t get_val(inst_p inst_info)
+uint32_t get_val(void)
 {
-        return inst_info->val;
+        return instruction.val;
 }
 
-/* not sure if we will keep these in here so i haven't commented them out*/
-/***************************************/
-Except_T Bitpack_Overflow = { "Overflow packing bits" };
+/** Private Functions: **/
 
-static inline uint64_t shl(uint64_t word, unsigned bits)
+/* Basically just Bitpack_getu except it uses a predefined bit mask */
+static inline uint32_t mask_code(uint32_t code, uint32_t mask, uint32_t lsb)
 {
-        assert(bits <= 64);
-        if (bits == 64)
-                return 0;
-        else
-                return word << bits;
+        return (code & mask) >> lsb;
 }
-
-/*
- * shift R logical
- */
-static inline uint64_t shr(uint64_t word, unsigned bits)
-{
-        assert(bits <= 64);
-        if (bits == 64)
-                return 0;
-        else
-                return word >> bits;
-}
-
-uint64_t Bitpack_getu(uint64_t word, unsigned width, unsigned lsb)
-{
-        unsigned hi = lsb + width; /* one beyond the most significant bit */
-        assert(hi <= 64);
-        /* different type of right shift */
-        return shr(shl(word, 64 - hi),
-                      64 - width); 
-}
-
-uint64_t Bitpack_newu(uint64_t word, unsigned width, unsigned lsb,
-                      uint64_t value)
-{
-        unsigned hi = lsb + width; /* one beyond the most significant bit */
-        assert(hi <= 64);
-        if (!Bitpack_fitsu(value, width))
-                RAISE(Bitpack_Overflow);
-        return shl(shr(word, hi), hi)                 /* high part */
-                | shr(shl(word, 64 - lsb), 64 - lsb)  /* low part  */
-                | (value << lsb);                     /* new part  */
-}
-
-bool Bitpack_fitsu(uint64_t n, unsigned width)
-{
-        if (width >= 64)
-                return true;
-        /* thanks to Jai Karve and John Bryan  */
-        /* clever shortcut instead of 2 shifts */
-        return shr(n, width) == 0; 
-}
-

@@ -9,22 +9,19 @@
 
 #ifndef MEM_H
 #define MEM_H
-typedef struct mem_info *mem_info_p; 
 
-extern mem_info_p init_segments(int num_inst);
+extern void init_segments(int num_inst);
 
-extern uint32_t map_segment(mem_info_p mem, uint32_t len);
+extern uint32_t map_segment(uint32_t len);
 
-extern void mem_put(mem_info_p mem, uint32_t segment_id, uint32_t array_index, 
-                    uint32_t val);
+extern void mem_put(uint32_t segment_id, uint32_t array_index, uint32_t val);
 
-extern uint32_t mem_get(mem_info_p mem, uint32_t segment_id, 
-                    uint32_t array_index);
+extern uint32_t mem_get(uint32_t segment_id, uint32_t array_index);
 
-extern void unmap_segment(mem_info_p mem, uint32_t segment_id);
+extern void unmap_segment(uint32_t segment_id);
 
-extern void free_segments(mem_info_p *mem);
+extern void free_segments(void);
 
-extern void load_program_mem(mem_info_p mem, uint32_t segment_id);
+extern void load_program_mem(uint32_t segment_id);
 
 #endif

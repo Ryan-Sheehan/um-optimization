@@ -11,31 +11,35 @@
 #include <stdlib.h>
 #include <sys/stat.h>
 #include <endian.h>
-#include <assert.h>
 
 #define WORD_SIZE sizeof(uint32_t)
 
 typedef enum Um_opcode {
-        CMOV = 0, SLOAD, SSTORE, ADD, MUL, DIV,
-        NAND, HALT, ACTIVATE, INACTIVATE, OUT, IN, LOADP, LV
+        CMOV, SLOAD, SSTORE, ADD, MUL, DIV, NAND, 
+        HALT, ACTIVATE, INACTIVATE, OUT, IN, LOADP, LV
 } Um_opcode;
 
 static void init_um(FILE *fp, char *filename);
 static void run(void);
-static void cmov(void);
-static void sload(void);
-static void sstore(void);
-static void add(void);
-static void mul(void);
-static void divide(void);
-static void nand(void);
-static void halt();
-static void activate(void);
-static void inactivate(void);
-static void output(void);
-static void input(void);
-static void loadp(int *counter);
-static void loadv(void);
+static void cmov(uint32_t, uint32_t, uint32_t);
+static void sload(uint32_t, uint32_t, uint32_t);
+static void sstore(uint32_t, uint32_t, uint32_t);
+static void add(uint32_t, uint32_t, uint32_t);
+static void mul(uint32_t, uint32_t, uint32_t);
+static void divide(uint32_t, uint32_t, uint32_t);
+static void nand(uint32_t, uint32_t, uint32_t);
+static void halt(uint32_t, uint32_t, uint32_t);
+static void activate(uint32_t, uint32_t, uint32_t);
+static void inactivate(uint32_t, uint32_t, uint32_t);
+static void output(uint32_t, uint32_t, uint32_t);
+static void input(uint32_t, uint32_t, uint32_t);
+static void loadp(uint32_t, uint32_t, uint32_t);
+static void loadv(uint32_t, uint32_t, uint32_t);
+
+/* Jump table */
+typedef void (*op)(uint32_t, uint32_t, uint32_t);
+static op operations[] = { cmov, sload, sstore, add, mul, divide, 
+        nand, halt, activate, inactivate, output, input, loadp, loadv };
 
 /*
  * function: driver
@@ -97,46 +101,24 @@ static void init_um(FILE *fp, char *filename)
 static void run(void)
 {
         int counter = 0, opcode = 0;
-        uint32_t word;
 
         while (opcode != HALT) {
-                word = mem_get(0, counter);
-
+                uint32_t word = mem_get(0, counter);
                 unpack(word);
                 opcode = get_opcode();
+                uint32_t ra = get_rega(), rb = 0, rc = 0;
+                
+                if (opcode < 13) {
+                    rb = get_regb();
+                    rc = get_regc();
+                } else
+                    rb = get_val();
 
-                if (opcode == CMOV) {
-                        cmov();
-                } else if (opcode == SLOAD) {
-                        sload();
-                } else if (opcode == SSTORE) {
-                        sstore();
-                } else if (opcode == ADD) {
-                        add();
-                } else if (opcode == MUL) {
-                        mul();
-                } else if (opcode == DIV) {
-                        divide();
-                } else if (opcode == NAND) {
-                        nand();
-                } else if (opcode == HALT) {
-                        halt();
-                } else if (opcode == ACTIVATE) {                        
-                        activate();
-                } else if (opcode == INACTIVATE) {
-                        inactivate();
-                } else if (opcode == OUT) {
-                        output();
-                } else if (opcode == IN) {
-                        input();
-                } else if (opcode == LOADP) {
-                        loadp(&counter);
-                } else if (opcode == LV) {
-                        loadv();
-                }
-                if (opcode != LOADP) {
+                operations[opcode](ra, rb, rc);
+                if (opcode != LOADP)
                         counter++;
-                }
+                else
+                        counter = registers[rc];
         }
         free_segments();
 }
@@ -149,10 +131,10 @@ static void run(void)
  * does: conditional move-- if register c doesn't have 0,  
  *        then value of register B goes in register A
  */
-static void cmov(void)
+static void cmov(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        if (registers[get_regc()] != 0)
-                registers[get_rega()] = registers[get_regb()];
+        if (registers[rc] != 0)
+                registers[ra] = registers[rb];
 }
 
 
@@ -165,11 +147,11 @@ static void cmov(void)
  *       and array index in register c, put that respective
  *       value in register c     
  */
-static void sload(void)
+static void sload(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t b = registers[get_regb()];
-        uint32_t c = registers[get_regc()];
-        registers[get_rega()] = mem_get(b, c);
+        rb = registers[rb];
+        rc = registers[rc];
+        registers[ra] = mem_get(rb, rc);
 }
 
 
@@ -182,12 +164,12 @@ static void sload(void)
  *       and array index in register c, put that respective
  *       value in register c     
  */
-static void sstore(void)
+static void sstore(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t a = registers[get_rega()];
-        uint32_t b = registers[get_regb()];
-        uint32_t c = registers[get_regc()];
-        mem_put(a, b, c);
+        ra = registers[ra];
+        rb = registers[rb];
+        rc = registers[rc];
+        mem_put(ra, rb, rc);
 }
 
 
@@ -198,11 +180,11 @@ static void sstore(void)
  * does: add-- adds values in registers B and C,
  *       puts result in register A    
  */
-static void add(void)
+static void add(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t b = registers[get_regb()];
-        uint32_t c = registers[get_regc()];
-        registers[get_rega()] = (b + c);
+        rb = registers[rb];
+        rc = registers[rc];
+        registers[ra] = (rb + rc);
 }
 
 
@@ -213,11 +195,11 @@ static void add(void)
  * does: multiply-- multiplies values in registers B and C,
  *       puts result in register A    
  */
-static void mul(void)
+static void mul(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t b = registers[get_regb()];
-        uint32_t c = registers[get_regc()];
-        registers[get_rega()] = (b * c);
+        rb = registers[rb];
+        rc = registers[rc];
+        registers[ra] = (rb * rc);
 }
 
 
@@ -228,11 +210,11 @@ static void mul(void)
  * does: divide-- divides values in registers B and C,
  *       puts result in register A    
  */
-static void divide(void)
+static void divide(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t b = registers[get_regb()];
-        uint32_t c = registers[get_regc()];
-        registers[get_rega()] = (b / c);
+        rb = registers[rb];
+        rc = registers[rc];
+        registers[ra] = (rb / rc);
 }
 
 
@@ -244,11 +226,11 @@ static void divide(void)
  *       registers B and C, puts result in 
  *       register A   
  */
-static void nand(void)
+static void nand(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t b = registers[get_regb()];
-        uint32_t c = registers[get_regc()];
-        registers[get_rega()] = ~(b & c);
+        rb = registers[rb];
+        rc = registers[rc];
+        registers[ra] = ~(rb & rc);
 }
 
 
@@ -258,9 +240,11 @@ static void nand(void)
  * returns: void
  * does: nothing 
  */
-static void halt()
+static void halt(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-
+    (void)ra;
+    (void)rb;
+    (void)rc;
 }
 
 
@@ -275,11 +259,11 @@ static void halt()
  *               not all 0 and does not identify any curently mapped 
  *               segment is placed in register B   
  */
-static void activate(void)
+static void activate(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t c = registers[get_regc()];
-        uint32_t id = map_segment(c);
-        registers[get_regb()] = id;
+        rc = registers[rc];
+        ra = map_segment(rc);
+        registers[rb] = ra;
 }
 
 
@@ -292,10 +276,12 @@ static void activate(void)
  *       c is unmapped, future map segment ructions
  *       may reuse the identfier in register C
  */
-static void inactivate(void)
+static void inactivate(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t c = registers[get_regc()];
-        unmap_segment(c);
+        (void)ra;
+        (void)rb;
+        rc = registers[rc];
+        unmap_segment(rc);
 }
 
 
@@ -307,12 +293,13 @@ static void inactivate(void)
  *       the I/O device immediately, only values
  *       0-255 are allowed
  */
-static void output(void)
+static void output(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t out = registers[get_regc()];
-        if (out <= 255) {
-                putchar(out);
-        }
+        (void)ra;
+        (void)rb;
+        rc = registers[rc];
+        if (rc <= 255)
+                putchar(rc);
 }
 
 
@@ -327,10 +314,11 @@ static void output(void)
  *       loaded with a full 32-bit word in which every
  *       bit is a 1 
  */
-static void input(void)
+static void input(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t in = getchar();
-        registers[get_regc()] = in;
+        (void)rb;
+        ra = getchar();
+        registers[rc] = ra;
 }
 
 
@@ -347,16 +335,13 @@ static void input(void)
  *        instruction segment. If the value in register B is
  *        0, then just the counter is changed. 
  */
-static void loadp(int *counter)
+static void loadp(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        uint32_t b = registers[get_regb()];
-        uint32_t c = registers[get_regc()];
-
-        if (b == 0) {
-                *counter = c;
-        } else {
-                load_program_mem(b);
-        }
+        (void)ra;
+        rb = registers[rb];
+        rc = registers[rc];
+        if (rb != 0)
+                load_program_mem(rb);
 }
 
 
@@ -367,7 +352,8 @@ static void loadp(int *counter)
  * does: sets the value in register A to the 
  *       25 bit unsigned binary value
  */
-static void loadv(void)
+static void loadv(uint32_t ra, uint32_t rb, uint32_t rc)
 {
-        registers[get_rega()] = get_val();
+        (void)rc;
+        registers[ra] = rb;
 }

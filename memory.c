@@ -12,7 +12,7 @@
 #include <assert.h>
 #include "buarray.h"
 #include "stack.h"
-#include "seq.h"
+#include "buseq.h"
 
 typedef uint32_t Umsegment_ID; 
 
@@ -22,7 +22,7 @@ typedef uint32_t Umsegment_ID;
  * Stack and a uint32_t to handle memeory
  */
 static struct mem_info {
-        Seq_T segments;
+        BUSeq_T segments;
         Stack_T open_indices;
         uint32_t max_index;
 } mem_manager;
@@ -41,7 +41,8 @@ void init_segments(int num_inst)
 {
         BUArray_T seg0 = BUArray_new(num_inst);
 
-        mem_manager.segments = Seq_seq(seg0, NULL);
+        mem_manager.segments = BUSeq_new(10);
+        BUSeq_addhi(mem_manager.segments, seg0);
         mem_manager.max_index = 1;
         mem_manager.open_indices = Stack_new();
 }
@@ -63,7 +64,7 @@ uint32_t map_segment(uint32_t len)
         BUArray_T mem_seg = BUArray_new(len);
 
         if (Stack_empty(mem_manager.open_indices)) {
-                Seq_addhi(mem_manager.segments, mem_seg);
+                BUSeq_addhi(mem_manager.segments, mem_seg);
                 index = (mem_manager.max_index);
                 mem_manager.max_index = (mem_manager.max_index) + 1; 
                 
@@ -72,7 +73,7 @@ uint32_t map_segment(uint32_t len)
         } else {
                 index = ((Umsegment_ID)(uintptr_t)
                         Stack_pop(mem_manager.open_indices));
-                Seq_put(mem_manager.segments, index, mem_seg);
+                BUSeq_put(mem_manager.segments, index, mem_seg);
                 return index;
         }
 }
@@ -88,7 +89,7 @@ uint32_t map_segment(uint32_t len)
  */
 void mem_put(uint32_t segment_id, uint32_t array_index, uint32_t val)
 {
-        BUArray_T mem_seg = Seq_get(mem_manager.segments, segment_id); 
+        BUArray_T mem_seg = BUSeq_get(mem_manager.segments, segment_id); 
         BUArray_put(mem_seg, array_index, val);
 }
 
@@ -102,7 +103,7 @@ void mem_put(uint32_t segment_id, uint32_t array_index, uint32_t val)
  */
 uint32_t mem_get(uint32_t segment_id, uint32_t array_index)
 {
-        BUArray_T mem_seg = Seq_get(mem_manager.segments, segment_id);
+        BUArray_T mem_seg = BUSeq_get(mem_manager.segments, segment_id);
         return BUArray_get(mem_seg, array_index);
 }
 
@@ -114,8 +115,8 @@ uint32_t mem_get(uint32_t segment_id, uint32_t array_index)
  */
 void load_program_mem(uint32_t segment_id)
 {
-        BUArray_T seg_0 = Seq_get(mem_manager.segments, 0);
-        BUArray_T mem_seg = Seq_get(mem_manager.segments, segment_id);
+        BUArray_T seg_0 = BUSeq_get(mem_manager.segments, 0);
+        BUArray_T mem_seg = BUSeq_get(mem_manager.segments, segment_id);
         uint32_t len = BUArray_length(mem_seg);
         BUArray_reloc(&seg_0, len);
 
@@ -136,7 +137,7 @@ void load_program_mem(uint32_t segment_id)
  */
 void unmap_segment(uint32_t segment_id)
 {
-        BUArray_T mem_seg = Seq_put(mem_manager.segments, segment_id, NULL);
+        BUArray_T mem_seg = BUSeq_put(mem_manager.segments, segment_id, NULL);
         BUArray_free(&mem_seg);
         Stack_push(mem_manager.open_indices, (void *)(uintptr_t)segment_id);
 }
@@ -149,13 +150,12 @@ void unmap_segment(uint32_t segment_id)
  */
 void free_segments(void)
 {
-        while (Seq_length(mem_manager.segments) != 0) {
-                BUArray_T inst_seg = Seq_remhi(mem_manager.segments);
-                if (inst_seg != NULL) {
-                        BUArray_free(&inst_seg);
-                } 
+        int length = BUSeq_length(mem_manager.segments);
+        for (int i = 0; i < length; i++) {
+                BUArray_T seg = BUSeq_get(mem_manager.segments, i);
+                if (seg != NULL)
+                        BUArray_free(&seg);
         }
-
-        Seq_free(&(mem_manager.segments));
+        BUSeq_free(&(mem_manager.segments));
         Stack_free(&(mem_manager.open_indices));
 }

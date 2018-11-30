@@ -82,6 +82,8 @@ static void init_um(FILE *fp, char *filename)
         
         for (uint32_t i = 0; i < length; i++)
             mem_put(0, i, be32toh(words[i]));
+
+        free(words);
 }
 
 

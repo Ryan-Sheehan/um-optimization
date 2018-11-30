@@ -1,0 +1,13 @@
+Assembly Analysis:
+
+The first thing we noticed was how many steps something simple
+like BUArray_get was. It's a 3-line function, 2 of which were
+assertions, and, yet, there was a lot of shuffling data between
+registers and moving the stack (seemingly) uneccesarily. Plus
+There were various calls to the function even though it wasn't
+recursive!
+Upon replacing the assertions with if statements, BUArray_get
+went from 33 lines of assembly code to 14 lines.
+Likewise, replacing assertions with if statements for all other
+BUArray functions dropped the number of necessary assembly operations
+by roughly 50%.

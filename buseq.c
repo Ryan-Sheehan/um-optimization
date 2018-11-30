@@ -12,7 +12,9 @@
 
 #include "buseq.h"
 #include <stdlib.h>
-#include <assert.h>
+
+#define ARR_SIZE sizeof(BUArray_T)
+#define SEQ_SIZE sizeof(BUSeq_T)
 
 #define T BUSeq_T
 struct T {
@@ -24,13 +26,12 @@ struct T {
 static void resize(BUSeq_T seq);
 
 /* Create a BUSeq with initial capacity */
-BUSeq_T BUSeq_new(uint32_t capacity)
+BUSeq_T BUSeq_new(const uint32_t capacity)
 {
-        BUSeq_T seq = malloc(sizeof(*seq));
-        assert(seq != NULL);
-        seq->array = calloc(capacity, sizeof(*(seq->array)));
-        assert(seq->array != NULL);
-        seq->length = 0;
+        BUSeq_T seq = malloc(SEQ_SIZE);
+        seq->array = calloc(capacity, ARR_SIZE);
+        if (seq == NULL || seq->array == NULL)
+                exit(EXIT_FAILURE);
         seq->capacity = capacity;
         return seq;
 }
@@ -38,41 +39,44 @@ BUSeq_T BUSeq_new(uint32_t capacity)
 /* Free sequence */
 void BUSeq_free(BUSeq_T *seq)
 {
-        assert(*seq != NULL);
+        if (*seq == NULL)
+                exit(EXIT_FAILURE);
         free((*seq)->array);
         free(*seq);
         *seq = NULL;
 }
 
 /* Get element at index */
-BUArray_T BUSeq_get(BUSeq_T seq, uint32_t index)
+BUArray_T BUSeq_get(const BUSeq_T seq, const uint32_t index)
 {
-        assert(seq != NULL);
-        assert(index < seq->length);
+        if (seq == NULL || index >= seq->length)
+                exit(EXIT_FAILURE);
         return seq->array[index];
 }
 
-uint32_t BUSeq_length(BUSeq_T seq)
+uint32_t BUSeq_length(const BUSeq_T seq)
 {
-        assert(seq != NULL);
+        if (seq == NULL)
+                exit(EXIT_FAILURE);
         return seq->length;
 } 
 
 /* Set element at index to value. Returns the previous value */
-BUArray_T BUSeq_put(BUSeq_T seq, uint32_t index, BUArray_T value)
+BUArray_T BUSeq_put(BUSeq_T seq, const uint32_t index, const BUArray_T value)
 {
-        assert(seq != NULL);
-        assert(index < seq->capacity);
+        if (seq == NULL || index >= seq->capacity)
+                exit(EXIT_FAILURE);
         BUArray_T old = seq->array[index];
         seq->array[index] = value;
         return old;
 }
 
 /* Add an element to the end of the sequence. Automatically resizes. */
-void BUSeq_addhi(BUSeq_T seq, BUArray_T value)
+void BUSeq_addhi(BUSeq_T seq, const BUArray_T value)
 {
-        assert(seq != NULL);
-        if (seq->length == seq->capacity)
+        if (seq == NULL)
+                exit(EXIT_FAILURE);
+        else if (seq->length == seq->capacity)
                 resize(seq);
         seq->array[seq->length++] = value;
 }
@@ -81,6 +85,7 @@ static void resize(BUSeq_T seq)
 {
         uint32_t new_cap = seq->capacity * 2;
         seq->array = realloc(seq->array, sizeof(*(seq->array)) * new_cap);
-        assert(seq->array != NULL);
+        if (seq->array == NULL)
+                exit(EXIT_FAILURE);
         seq->capacity = new_cap;
 }

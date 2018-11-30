@@ -6,12 +6,11 @@
 */
 
 #include <stdint.h>
-#include <stdbool.h>
 
 #ifndef DECODE_H
 #define DECODE_H
 
-extern void unpack(uint32_t word);
+extern void unpack(const uint32_t word);
 
 extern int get_opcode(void);
 

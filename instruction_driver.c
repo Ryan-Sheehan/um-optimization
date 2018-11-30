@@ -72,14 +72,12 @@ static void init_um(FILE *fp, char *filename)
 
         /* Every 4 bytes becomes a word */
         uint32_t matches, *words = malloc(WORD_SIZE * length);
-        assert(words != NULL);
-        matches = fread(words, WORD_SIZE, length, fp);
-        assert(matches == length);
-        if (matches != length) {
-                fprintf(stderr, "Error reading from file '%s'\n", filename);
+        if (words == NULL)
+            exit(EXIT_FAILURE);
+        matches = fread(words, WORD_SIZE, length, fp);        
+        if (matches != length)
                 exit(EXIT_FAILURE);
-        }
-        
+
         for (uint32_t i = 0; i < length; i++)
             mem_put(0, i, be32toh(words[i]));
 
@@ -98,12 +96,8 @@ static void init_um(FILE *fp, char *filename)
  */
 static void run(void)
 {
-        int counter;
+        int counter = 0, opcode = 0;
         uint32_t word;
-        int opcode;
-
-        counter = 0;
-        opcode = 0;
 
         while (opcode != HALT) {
                 word = mem_get(0, counter);
@@ -157,11 +151,8 @@ static void run(void)
  */
 static void cmov(void)
 {
-        uint32_t c = registers[get_regc()];
-        if (c != 0) {
-                uint32_t b = registers[get_regb()];
-                registers[get_rega()] = b;
-        }
+        if (registers[get_regc()] != 0)
+                registers[get_rega()] = registers[get_regb()];
 }
 
 
@@ -178,8 +169,7 @@ static void sload(void)
 {
         uint32_t b = registers[get_regb()];
         uint32_t c = registers[get_regc()];
-        uint32_t mem_val = mem_get(b, c);
-        registers[get_rega()] = mem_val;
+        registers[get_rega()] = mem_get(b, c);
 }
 
 

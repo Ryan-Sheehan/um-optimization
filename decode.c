@@ -8,7 +8,6 @@
 */
 
 #include "decode.h"
-#include <assert.h>
 #include <stdlib.h>
 
 
@@ -42,7 +41,7 @@ static inline uint32_t mask_code(const uint32_t,
  * does: unpacks a word using Bitpack into its opcode,
  *       and 3 different register identifiers (a, b, c)
  */
-void unpack(uint32_t word) 
+void unpack(const uint32_t word) 
 {
         uint32_t opcode = mask_code(word, MASK_OP, LSB_OP);
         instruction.opcode = opcode;

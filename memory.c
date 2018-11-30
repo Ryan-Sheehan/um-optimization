@@ -8,8 +8,6 @@
 
 #include "memory.h"
 #include <stdlib.h>
-#include <stdio.h>
-#include <assert.h>
 #include "buarray.h"
 #include "stack.h"
 #include "buseq.h"
@@ -37,10 +35,9 @@ static struct mem_info {
  *       creates Hanson stack to track open indices
  *       
  */
-void init_segments(int num_inst)
+void init_segments(const int num_inst)
 {
         BUArray_T seg0 = BUArray_new(num_inst);
-
         mem_manager.segments = BUSeq_new(10);
         BUSeq_addhi(mem_manager.segments, seg0);
         mem_manager.max_index = 1;
@@ -58,7 +55,7 @@ void init_segments(int num_inst)
  *       otherwise pops open index off stack and puts the new data in
  *       that spot in the sequence
  */
-uint32_t map_segment(uint32_t len)
+uint32_t map_segment(const uint32_t len)
 {
         uint32_t index;
         BUArray_T mem_seg = BUArray_new(len);
@@ -87,7 +84,8 @@ uint32_t map_segment(uint32_t len)
  * does: puts a value in memory at a given segment_id and 
  *       index
  */
-void mem_put(uint32_t segment_id, uint32_t array_index, uint32_t val)
+void mem_put(const uint32_t segment_id, const uint32_t array_index, 
+        const uint32_t val)
 {
         BUArray_T mem_seg = BUSeq_get(mem_manager.segments, segment_id); 
         BUArray_put(mem_seg, array_index, val);
@@ -101,7 +99,7 @@ void mem_put(uint32_t segment_id, uint32_t array_index, uint32_t val)
  * returns: uint32_t (word stored in memory)
  * does: gets a value from memory at given segment id and index 
  */
-uint32_t mem_get(uint32_t segment_id, uint32_t array_index)
+uint32_t mem_get(const uint32_t segment_id, const uint32_t array_index)
 {
         BUArray_T mem_seg = BUSeq_get(mem_manager.segments, segment_id);
         return BUArray_get(mem_seg, array_index);
@@ -113,7 +111,7 @@ uint32_t mem_get(uint32_t segment_id, uint32_t array_index)
  * returns: void
  * does: loads new instructions in segment 0 of memory 
  */
-void load_program_mem(uint32_t segment_id)
+void load_program_mem(const uint32_t segment_id)
 {
         BUArray_T seg_0 = BUSeq_get(mem_manager.segments, 0);
         BUArray_T mem_seg = BUSeq_get(mem_manager.segments, segment_id);
@@ -135,7 +133,7 @@ void load_program_mem(uint32_t segment_id)
  * does: unmaps a segment by freeing it and then pushing its
  *       index onto the stack of open indices for reuse   
  */
-void unmap_segment(uint32_t segment_id)
+void unmap_segment(const uint32_t segment_id)
 {
         BUArray_T mem_seg = BUSeq_put(mem_manager.segments, segment_id, NULL);
         BUArray_free(&mem_seg);

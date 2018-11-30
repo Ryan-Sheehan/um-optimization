@@ -17,15 +17,15 @@
 typedef struct T *T;
 
 /* Create a BUSeq with initial capacity */
-BUSeq_T BUSeq_new(uint32_t capacity);
+BUSeq_T BUSeq_new(const uint32_t capacity);
 /* Free sequence */
 void BUSeq_free(BUSeq_T *seq);
 /* Get element at index */
-BUArray_T BUSeq_get(BUSeq_T seq, uint32_t index);
+BUArray_T BUSeq_get(const BUSeq_T seq, const uint32_t index);
 /* Get the length of the sequence */
-uint32_t BUSeq_length(BUSeq_T seq);
+uint32_t BUSeq_length(const BUSeq_T seq);
 /* Set element at index to value. Returns the previous value */
-BUArray_T BUSeq_put(BUSeq_T seq, uint32_t index, BUArray_T value);
+BUArray_T BUSeq_put(BUSeq_T seq, const uint32_t index, const BUArray_T value);
 /* Add an element to the end of the sequence. Automatically resizes. */
 void BUSeq_addhi(BUSeq_T seq, BUArray_T value);
 
